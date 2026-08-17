@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vinzor Photo Studio Pro — AI-Powered Web Creative Suite</title>
+  <title>Vinzor Photo Studio Pro — Creative Graphics Suite</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +29,7 @@
         <div class="menu-item" data-menu="file">
           <span>File</span>
           <div class="dropdown-menu">
+            <button class="menu-action" id="menu-home"><i data-lucide="home"></i> Home Screen</button>
             <button class="menu-action" id="menu-new"><i data-lucide="file-plus"></i> New Project... <span class="shortcut">Ctrl+N</span></button>
             <button class="menu-action" id="menu-open"><i data-lucide="folder-open"></i> Open Image... <span class="shortcut">Ctrl+O</span></button>
             <button class="menu-action" id="menu-open-project"><i data-lucide="folder-archive"></i> Load Project (.json)...</button>
@@ -125,15 +126,12 @@
         <button class="btn btn-secondary btn-xs" id="btn-deselect-current" title="Deselect Active Layer / Selection (Esc)"><i data-lucide="x"></i> Deselect</button>
       </div>
 
-      <!-- Dynamic options injected based on active tool -->
       <div class="tool-specific-options" id="tool-specific-options">
-        <!-- Move tool options -->
         <div class="tool-opts" data-for="move">
           <label class="checkbox-label"><input type="checkbox" id="opt-auto-select" checked /> Auto-Select Layer</label>
           <label class="checkbox-label"><input type="checkbox" id="opt-show-transform" checked /> Show Transform Box</label>
         </div>
 
-        <!-- Brush tool options -->
         <div class="tool-opts hidden" data-for="brush">
           <div class="input-inline">
             <span>Size:</span>
@@ -145,14 +143,8 @@
             <input type="range" id="opt-brush-opacity" min="1" max="100" value="100" />
             <span class="val" id="val-brush-opacity">100%</span>
           </div>
-          <div class="input-inline">
-            <span>Hardness:</span>
-            <input type="range" id="opt-brush-hardness" min="0" max="100" value="80" />
-            <span class="val" id="val-brush-hardness">80%</span>
-          </div>
         </div>
 
-        <!-- Eraser tool options -->
         <div class="tool-opts hidden" data-for="eraser">
           <div class="input-inline">
             <span>Size:</span>
@@ -166,7 +158,6 @@
           </div>
         </div>
 
-        <!-- Shape tool options -->
         <div class="tool-opts hidden" data-for="shape">
           <select id="opt-shape-type" class="select-sm">
             <option value="rectangle">Rectangle</option>
@@ -183,9 +174,8 @@
           <label class="checkbox-label"><input type="checkbox" id="opt-shape-fill-check" checked /> Fill</label>
         </div>
 
-        <!-- Text tool options -->
         <div class="tool-opts hidden" data-for="text">
-          <input type="text" id="opt-text-live-input" class="input-text" placeholder="Type text here..." style="width:190px;padding:4px 8px;font-size:12px;" />
+          <input type="text" id="opt-text-live-input" class="input-text" placeholder="Type text here..." style="width:200px;padding:4px 8px;font-size:12px;" />
           <select id="opt-font-family" class="select-sm">
             <option value="Inter, sans-serif">Inter</option>
             <option value="'Roboto', sans-serif">Roboto</option>
@@ -201,10 +191,9 @@
           </div>
           <button class="btn-icon-toggle" id="opt-font-bold" title="Bold"><i data-lucide="bold"></i></button>
           <button class="btn-icon-toggle" id="opt-font-italic" title="Italic"><i data-lucide="italic"></i></button>
-          <button class="btn btn-primary btn-xs" id="btn-apply-text-change"><i data-lucide="check"></i> Update Text</button>
+          <button class="btn btn-primary btn-xs" id="btn-apply-text-change"><i data-lucide="check"></i> Update</button>
         </div>
 
-        <!-- Crop tool options -->
         <div class="tool-opts hidden" data-for="crop">
           <button class="btn btn-primary btn-xs" id="btn-apply-crop"><i data-lucide="check"></i> Apply Crop</button>
           <button class="btn btn-secondary btn-xs" id="btn-cancel-crop">Cancel</button>
@@ -226,9 +215,9 @@
       <!-- LEFT TOOLBAR -->
       <aside class="left-toolbar">
         <div class="tool-group">
-          <button class="tool-btn active" data-tool="move" title="Move & Select Tool (V)"><i data-lucide="move"></i></button>
-          <button class="tool-btn" data-tool="marquee" title="Marquee Selection (M)"><i data-lucide="square-dashed"></i></button>
-          <button class="tool-btn" data-tool="crop" title="Crop Canvas (C)"><i data-lucide="crop"></i></button>
+          <button class="tool-btn active" data-tool="move" title="Move Tool (V)"><i data-lucide="move"></i></button>
+          <button class="tool-btn" data-tool="marquee" title="Marquee (M)"><i data-lucide="square-dashed"></i></button>
+          <button class="tool-btn" data-tool="crop" title="Crop (C)"><i data-lucide="crop"></i></button>
         </div>
 
         <div class="tool-separator"></div>
@@ -236,15 +225,15 @@
         <div class="tool-group">
           <button class="tool-btn" data-tool="brush" title="Paint Brush (B)"><i data-lucide="brush"></i></button>
           <button class="tool-btn" data-tool="eraser" title="Eraser (E)"><i data-lucide="eraser"></i></button>
-          <button class="tool-btn" data-tool="bucket" title="Paint Bucket / Fill (G)"><i data-lucide="paint-bucket"></i></button>
-          <button class="tool-btn" data-tool="shape" title="Vector Shapes (U)"><i data-lucide="shapes"></i></button>
-          <button class="tool-btn" data-tool="text" title="Type / Text Tool (T)"><i data-lucide="type"></i></button>
+          <button class="tool-btn" data-tool="bucket" title="Paint Bucket (G)"><i data-lucide="paint-bucket"></i></button>
+          <button class="tool-btn" data-tool="shape" title="Shapes (U)"><i data-lucide="shapes"></i></button>
+          <button class="tool-btn" data-tool="text" title="Text Tool (T)"><i data-lucide="type"></i></button>
         </div>
 
         <div class="tool-separator"></div>
 
         <div class="tool-group">
-          <button class="tool-btn" data-tool="eyedropper" title="Color Eyedropper (I)"><i data-lucide="pipette"></i></button>
+          <button class="tool-btn" data-tool="eyedropper" title="Eyedropper (I)"><i data-lucide="pipette"></i></button>
           <button class="tool-btn" data-tool="inpaint" title="AI Inpainting Brush"><i data-lucide="wand-sparkles"></i></button>
         </div>
 
@@ -277,9 +266,8 @@
         </div>
       </section>
 
-      <!-- RIGHT SIDEBAR: PROPERTIES & LAYERS -->
+      <!-- RIGHT SIDEBAR -->
       <aside class="right-sidebar">
-        <!-- Panels Tabs -->
         <div class="sidebar-tabs">
           <button class="tab-btn active" data-tab="layers"><i data-lucide="layers"></i> Layers</button>
           <button class="tab-btn" data-tab="history"><i data-lucide="history"></i> History</button>
@@ -297,12 +285,6 @@
               <option value="overlay">Overlay</option>
               <option value="darken">Darken</option>
               <option value="lighten">Lighten</option>
-              <option value="color-dodge">Color Dodge</option>
-              <option value="color-burn">Color Burn</option>
-              <option value="hard-light">Hard Light</option>
-              <option value="soft-light">Soft Light</option>
-              <option value="difference">Difference</option>
-              <option value="exclusion">Exclusion</option>
             </select>
             <div class="layer-opacity-slider">
               <span>Op:</span>
@@ -311,6 +293,7 @@
             </div>
           </div>
 
+          <!-- Drag and Drop Layers Container -->
           <div class="layers-list" id="layers-list"></div>
 
           <div class="layer-footer-actions">
@@ -331,7 +314,7 @@
           </div>
         </div>
 
-        <!-- TAB 3: COLOR & ADJUSTMENTS PANEL -->
+        <!-- TAB 3: COLOR ADJUSTMENTS -->
         <div class="panel-content" id="panel-adjust">
           <div class="adjustments-container">
             <div class="adjustment-card">
@@ -360,11 +343,6 @@
                 <input type="range" id="adj-saturation" min="-100" max="100" value="0" />
                 <span class="val" id="val-adj-saturation">0</span>
               </div>
-              <div class="adjust-slider">
-                <span>Vibrance</span>
-                <input type="range" id="adj-vibrance" min="-100" max="100" value="0" />
-                <span class="val" id="val-adj-vibrance">0</span>
-              </div>
             </div>
 
             <div class="adjustment-card">
@@ -386,14 +364,14 @@
           </div>
         </div>
 
-        <!-- TAB 4: AI STUDIO PANEL -->
+        <!-- TAB 4: AI STUDIO -->
         <div class="panel-content" id="panel-ai-hub">
           <div class="ai-studio-container">
             <div class="ai-banner">
               <div class="ai-banner-icon"><i data-lucide="sparkles"></i></div>
               <div>
                 <h3>Vinzor AI Assistant</h3>
-                <p>Accelerate your creative workflow with automated smart tools.</p>
+                <p>Smart tools to accelerate creative workflows.</p>
               </div>
             </div>
 
@@ -402,7 +380,7 @@
                 <i data-lucide="scissors" class="ai-icon"></i>
                 <div>
                   <h4>1-Click Background Cutout</h4>
-                  <p>Intelligently removes backgrounds and isolates the subject.</p>
+                  <p>Isolate the subject from the active layer.</p>
                 </div>
               </div>
               <button class="btn btn-ai btn-block" id="btn-ai-remove-bg"><i data-lucide="sparkles"></i> Remove Background</button>
@@ -413,26 +391,10 @@
                 <i data-lucide="wand-2" class="ai-icon"></i>
                 <div>
                   <h4>Magic Auto-Enhance</h4>
-                  <p>Balances exposure, levels, vibrancy, and micro-contrast.</p>
+                  <p>Auto-balance exposure, contrast, and color levels.</p>
                 </div>
               </div>
-              <button class="btn btn-ai btn-block" id="btn-ai-auto-enhance-tab"><i data-lucide="sparkles"></i> Auto-Enhance Photo</button>
-            </div>
-
-            <div class="ai-feature-card">
-              <div class="ai-card-header">
-                <i data-lucide="layout-grid" class="ai-icon"></i>
-                <div>
-                  <h4>Social Media Smart Resize</h4>
-                  <p>Convert canvas to standard YouTube, TikTok, or Instagram formats.</p>
-                </div>
-              </div>
-              <div class="social-preset-buttons">
-                <button class="preset-btn" data-ratio="16:9" data-w="1280" data-h="720">16:9 YouTube</button>
-                <button class="preset-btn" data-ratio="1:1" data-w="1080" data-h="1080">1:1 Instagram</button>
-                <button class="preset-btn" data-ratio="9:16" data-w="1080" data-h="1920">9:16 Reel / Story</button>
-                <button class="preset-btn" data-ratio="4:5" data-w="1080" data-h="1350">4:5 Portrait</button>
-              </div>
+              <button class="btn btn-ai btn-block" id="btn-ai-auto-enhance-tab"><i data-lucide="sparkles"></i> Auto-Enhance</button>
             </div>
           </div>
         </div>
@@ -451,65 +413,142 @@
       <div class="status-right">
         <span id="status-layer-count">1 Layer</span>
         <span class="status-divider">|</span>
-        <span id="status-mem">GPU Accelerated WebGL2</span>
+        <span id="status-mem">WebGL2 GPU Acceleration Active</span>
       </div>
     </footer>
   </div>
 
-  <!-- MODALS -->
-
-  <!-- MODAL: NEW DOCUMENT -->
-  <div class="modal-backdrop" id="modal-new-doc">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3><i data-lucide="file-plus"></i> Create New Project</h3>
-        <button class="modal-close" data-close="modal-new-doc">&times;</button>
+  <!-- =========================================================================
+       PHOTOPEA-STYLE FULLSCREEN WELCOME DASHBOARD
+       ========================================================================= -->
+  <div id="welcome-screen" class="welcome-screen">
+    <div class="welcome-container">
+      <div class="welcome-header">
+        <div class="welcome-brand">
+          <div class="brand-logo-large">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </div>
+          <h1>Vinzor <strong>Studio Pro</strong></h1>
+        </div>
+        <p class="welcome-subtitle">Professional AI-assisted graphic design & image processing suite</p>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Project Name</label>
-          <input type="text" id="new-doc-name" class="input-text" value="Untitled Project" />
-        </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Width (px)</label>
-            <input type="number" id="new-doc-w" class="input-text" value="1280" min="50" max="8000" />
-          </div>
-          <div class="form-group">
-            <label>Height (px)</label>
-            <input type="number" id="new-doc-h" class="input-text" value="720" min="50" max="8000" />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Quick Presets</label>
-          <div class="preset-chips">
-            <button type="button" class="chip-btn" data-w="1920" data-h="1080">Full HD (1920×1080)</button>
-            <button type="button" class="chip-btn" data-w="1280" data-h="720">YouTube Thumb (1280×720)</button>
-            <button type="button" class="chip-btn" data-w="1080" data-h="1080">Instagram Post (1080×1080)</button>
-            <button type="button" class="chip-btn" data-w="1080" data-h="1920">TikTok / Reel (1080×1920)</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Background Fill</label>
-          <select id="new-doc-bg" class="select-sm">
-            <option value="transparent">Transparent</option>
-            <option value="#ffffff">White (#ffffff)</option>
-            <option value="#18181b">Dark (#18181b)</option>
-            <option value="#3b82f6">Vibrant Blue (#3b82f6)</option>
-          </select>
-        </div>
+      <div class="welcome-action-buttons">
+        <button class="welcome-btn primary" id="welcome-btn-new">
+          <i data-lucide="file-plus"></i>
+          <span>New Project</span>
+        </button>
+        <button class="welcome-btn" id="welcome-btn-open">
+          <i data-lucide="folder-open"></i>
+          <span>Open From Device</span>
+        </button>
+        <button class="welcome-btn" id="welcome-btn-sample">
+          <i data-lucide="sparkles"></i>
+          <span>Sample Template</span>
+        </button>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-close="modal-new-doc">Cancel</button>
-        <button class="btn btn-primary" id="btn-confirm-new-doc">Create Project</button>
+
+      <!-- Drag & Drop Dropzone -->
+      <div class="welcome-dropzone" id="welcome-dropzone">
+        <i data-lucide="upload-cloud" class="dropzone-icon"></i>
+        <span>Drop image or project files anywhere to start editing</span>
+      </div>
+
+      <div class="welcome-formats">
+        <span class="format-badge">.PNG</span>
+        <span class="format-badge">.JPG</span>
+        <span class="format-badge">.WEBP</span>
+        <span class="format-badge">.JSON</span>
+        <span class="format-badge">RAW</span>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: EXPORT IMAGE -->
+  <!-- =========================================================================
+       PHOTOPEA-STYLE ENHANCED NEW PROJECT MODAL
+       ========================================================================= -->
+  <div class="modal-backdrop" id="modal-new-doc">
+    <div class="modal-dialog modal-new-project-dialog">
+      <div class="modal-header">
+        <h3><i data-lucide="file-plus"></i> New Project</h3>
+        <button class="modal-close" data-close="modal-new-doc">&times;</button>
+      </div>
+
+      <div class="new-project-layout">
+        <!-- Center/Left: Visual Preset Cards Gallery -->
+        <div class="preset-gallery-section">
+          <div class="preset-tabs-bar">
+            <button class="preset-category-btn active" data-category="social">Social Media</button>
+            <button class="preset-category-btn" data-category="screen">Screen & Web</button>
+            <button class="preset-category-btn" data-category="print">Print & Paper</button>
+            <button class="preset-category-btn" data-category="mobile">Mobile</button>
+          </div>
+
+          <div class="preset-cards-grid" id="preset-cards-container">
+            <!-- Rendered Dynamically in app.js -->
+          </div>
+        </div>
+
+        <!-- Right: Project Parameters Form -->
+        <div class="new-project-form-sidebar">
+          <div class="form-group">
+            <label>Project Name</label>
+            <input type="text" id="new-doc-name" class="input-text" value="New Project" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Width (px)</label>
+              <input type="number" id="new-doc-w" class="input-text" value="1280" min="50" max="8000" />
+            </div>
+            <div class="form-group">
+              <label>Height (px)</label>
+              <input type="number" id="new-doc-h" class="input-text" value="720" min="50" max="8000" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Background Fill</label>
+            <select id="new-doc-bg" class="select-sm">
+              <option value="#ffffff">White (#ffffff)</option>
+              <option value="transparent">Transparent</option>
+              <option value="#18181b">Dark (#18181b)</option>
+              <option value="#3b82f6">Vibrant Blue (#3b82f6)</option>
+            </select>
+          </div>
+
+          <div class="new-project-sidebar-actions">
+            <button class="btn btn-primary btn-block" id="btn-confirm-new-doc">Create Project</button>
+            <button class="btn btn-secondary btn-block" data-close="modal-new-doc">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IN-APP TEXT EDITOR -->
+  <div class="modal-backdrop" id="modal-text-editor">
+    <div class="modal-dialog" style="width:400px;">
+      <div class="modal-header">
+        <h3><i data-lucide="type"></i> Edit Text Content</h3>
+        <button class="modal-close" data-close="modal-text-editor">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Text</label>
+          <textarea id="modal-text-input" class="input-text" rows="3" style="resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modal-text-editor">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-text-edit">Save Text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPORT -->
   <div class="modal-backdrop" id="modal-export">
     <div class="modal-dialog">
       <div class="modal-header">
@@ -561,7 +600,7 @@
 
   <div id="toast" class="toast"></div>
 
-  <!-- APP SCRIPT -->
+  <!-- APP LOGIC -->
   <script src="app.js"></script>
 </body>
 </html>
