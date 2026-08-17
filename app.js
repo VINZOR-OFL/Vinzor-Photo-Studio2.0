@@ -1,6 +1,6 @@
 /**
  * Vinzor Photo Studio Pro — Core Graphics, Layer & Canvas Engine
- * Corrected & Fully Wired Architecture
+ * Upgrades: Drag & Drop Layer Reordering, In-App Text Modals, Visual Presets & Welcome Screen
  */
 
 (function () {
@@ -22,14 +22,12 @@
     panStartY: 0,
     spacePressed: false,
 
-    activeTool: 'move', // move, marquee, crop, brush, eraser, bucket, shape, text, eyedropper, inpaint
+    activeTool: 'move',
     primaryColor: '#3b82f6',
     secondaryColor: '#ffffff',
 
     brushSize: 20,
     brushOpacity: 1.0,
-    brushHardness: 0.8,
-
     eraserSize: 30,
     eraserOpacity: 1.0,
 
@@ -45,7 +43,7 @@
     autoSelectLayer: true,
     showTransformBox: true,
 
-    selection: null, // { x, y, w, h }
+    selection: null,
     cropBox: null,
 
     isDrawing: false,
@@ -57,6 +55,36 @@
 
     inpaintPoints: [],
     transformStart: null,
+    draggedLayerIndex: null,
+    editingTextLayerId: null,
+  };
+
+  const PRESET_DEFINITIONS = {
+    social: [
+      { name: 'YouTube Thumbnail', w: 1280, h: 720, boxW: 48, boxH: 27 },
+      { name: 'Instagram Post', w: 1080, h: 1080, boxW: 36, boxH: 36 },
+      { name: 'Insta Story / Reel', w: 1080, h: 1920, boxW: 24, boxH: 42 },
+      { name: 'Instagram Portrait', w: 1080, h: 1350, boxW: 32, boxH: 40 },
+      { name: 'Facebook Cover', w: 1640, h: 664, boxW: 50, boxH: 20 },
+      { name: 'Twitter Header', w: 1500, h: 500, boxW: 52, boxH: 18 },
+    ],
+    screen: [
+      { name: 'Full HD 1080p', w: 1920, h: 1080, boxW: 48, boxH: 27 },
+      { name: '4K Ultra HD', w: 3840, h: 2160, boxW: 48, boxH: 27 },
+      { name: 'MacBook Retina', w: 2560, h: 1600, boxW: 44, boxH: 28 },
+      { name: 'Web Banner', w: 728, h: 90, boxW: 54, boxH: 12 },
+    ],
+    print: [
+      { name: 'A4 Sheet (300DPI)', w: 2480, h: 3508, boxW: 30, boxH: 42 },
+      { name: 'A5 Flyer', w: 1748, h: 2480, boxW: 30, boxH: 42 },
+      { name: 'Business Card', w: 1050, h: 600, boxW: 48, boxH: 28 },
+      { name: 'Square Print', w: 2000, h: 2000, boxW: 36, boxH: 36 },
+    ],
+    mobile: [
+      { name: 'iPhone 15 Pro', w: 1179, h: 2556, boxW: 22, boxH: 46 },
+      { name: 'Android FHD+', w: 1080, h: 2400, boxW: 22, boxH: 46 },
+      { name: 'iPad Pro 11"', w: 1668, h: 2388, boxW: 32, boxH: 44 },
+    ],
   };
 
   // DOM Elements
@@ -67,6 +95,7 @@
   const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
   const overlayCanvas = document.getElementById('overlay-canvas');
   const overlayCtx = overlayCanvas.getContext('2d');
+  const welcomeScreen = document.getElementById('welcome-screen');
 
   // =========================================================================
   // 2. LAYER CLASS
@@ -76,7 +105,7 @@
     constructor(name, width, height, type = 'raster') {
       this.id = 'layer_' + Math.random().toString(36).substr(2, 9);
       this.name = name || 'Layer';
-      this.type = type; // 'raster', 'text', 'shape'
+      this.type = type;
       this.visible = true;
       this.locked = false;
       this.opacity = 1.0;
@@ -154,11 +183,8 @@
         ctx.rect(this.x, this.y, this.width, this.height);
       } else if (s.type === 'rounded-rect') {
         const r = Math.min(20, this.width / 4, this.height / 4);
-        if (ctx.roundRect) {
-          ctx.roundRect(this.x, this.y, this.width, this.height, r);
-        } else {
-          ctx.rect(this.x, this.y, this.width, this.height);
-        }
+        if (ctx.roundRect) ctx.roundRect(this.x, this.y, this.width, this.height, r);
+        else ctx.rect(this.x, this.y, this.width, this.height);
       } else if (s.type === 'circle') {
         ctx.ellipse(
           this.x + this.width / 2,
@@ -209,7 +235,6 @@
       y = cy + Math.sin(rot) * outerRadius;
       ctx.lineTo(x, y);
       rot += step;
-
       x = cx + Math.cos(rot) * innerRadius;
       y = cy + Math.sin(rot) * innerRadius;
       ctx.lineTo(x, y);
@@ -220,7 +245,7 @@
   }
 
   // =========================================================================
-  // 3. LAYER MANAGER
+  // 3. LAYER MANAGER WITH DRAG AND DROP
   // =========================================================================
 
   class LayerManager {
@@ -315,6 +340,15 @@
       historyManager.pushState('Reorder Layers');
     }
 
+    reorderLayer(fromIndex, toIndex) {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+      const item = this.layers.splice(fromIndex, 1)[0];
+      this.layers.splice(toIndex, 0, item);
+      this.render();
+      this.updateUI();
+      historyManager.pushState('Drag & Reorder Layer');
+    }
+
     mergeDown(id) {
       const index = this.layers.findIndex((l) => l.id === id);
       if (index <= 0) {
@@ -364,13 +398,68 @@
       const listEl = document.getElementById('layers-list');
       listEl.innerHTML = '';
 
-      const reversedLayers = [...this.layers].reverse();
+      const count = this.layers.length;
 
-      reversedLayers.forEach((layer) => {
+      // Render top-down in UI (top layer first)
+      for (let i = count - 1; i >= 0; i--) {
+        const layer = this.layers[i];
+        const actualIndex = i;
+
         const item = document.createElement('div');
         item.className = `layer-item ${layer.id === this.activeLayerId ? 'active' : ''}`;
+        item.draggable = true;
+        item.dataset.index = actualIndex;
+
+        // HTML5 Drag & Drop Listeners
+        item.addEventListener('dragstart', (e) => {
+          state.draggedLayerIndex = actualIndex;
+          item.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', actualIndex);
+        });
+
+        item.addEventListener('dragend', () => {
+          item.classList.remove('dragging');
+          document.querySelectorAll('.layer-item').forEach((el) => {
+            el.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+        });
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          const rect = item.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          if (e.clientY < midY) {
+            item.classList.add('drag-over-top');
+            item.classList.remove('drag-over-bottom');
+          } else {
+            item.classList.add('drag-over-bottom');
+            item.classList.remove('drag-over-top');
+          }
+        });
+
+        item.addEventListener('dragleave', () => {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+
+        item.addEventListener('drop', (e) => {
+          e.preventDefault();
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+          const fromIdx = state.draggedLayerIndex;
+          if (fromIdx === null || fromIdx === undefined) return;
+
+          const rect = item.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          let toIdx = actualIndex;
+          if (e.clientY >= midY && fromIdx > actualIndex) {
+            // Dropped on bottom half
+          } else if (e.clientY < midY && fromIdx < actualIndex) {
+            // Dropped on top half
+          }
+          layerManager.reorderLayer(fromIdx, toIdx);
+        });
+
         item.onclick = (e) => {
-          if (!e.target.closest('.layer-vis-btn') && !e.target.closest('.layer-lock-btn')) {
+          if (!e.target.closest('.layer-vis-btn')) {
             layerManager.setActiveLayer(layer.id);
           }
         };
@@ -395,43 +484,20 @@
         const info = document.createElement('div');
         info.className = 'layer-info';
         info.innerHTML = `
-          <div class="layer-title" title="Double click to rename or edit text">${layer.name}</div>
+          <div class="layer-title" title="Double click to edit">${layer.name}</div>
           <div class="layer-sub">${layer.type.toUpperCase()} • ${Math.round(layer.opacity * 100)}%</div>
         `;
 
         const titleEl = info.querySelector('.layer-title');
         titleEl.ondblclick = () => {
           if (layer.type === 'text') {
-            const newTxt = prompt('Edit Text Content:', layer.textData.text);
-            if (newTxt !== null) {
-              layer.textData.text = newTxt;
-              layer.name = newTxt.slice(0, 20) || 'Text Layer';
-              layerManager.render();
-              layerManager.updateUI();
-              historyManager.pushState('Edit Text Content');
-            }
-          } else {
-            titleEl.contentEditable = 'true';
-            titleEl.focus();
-          }
-        };
-        titleEl.onblur = () => {
-          titleEl.contentEditable = 'false';
-          layer.name = titleEl.innerText.trim() || layer.name;
-          historyManager.pushState('Rename Layer');
-        };
-        titleEl.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            titleEl.blur();
+            openInAppTextModal(layer);
           }
         };
 
         const visBtn = document.createElement('button');
         visBtn.className = `layer-vis-btn ${layer.visible ? 'visible' : ''}`;
-        visBtn.innerHTML = layer.visible
-          ? '<i data-lucide="eye"></i>'
-          : '<i data-lucide="eye-off"></i>';
+        visBtn.innerHTML = layer.visible ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
         visBtn.onclick = (e) => {
           e.stopPropagation();
           layer.visible = !layer.visible;
@@ -444,7 +510,7 @@
         item.appendChild(thumb);
         item.appendChild(info);
         listEl.appendChild(item);
-      });
+      }
 
       const active = this.getActiveLayer();
       if (active) {
@@ -457,9 +523,7 @@
         this.layers.length > 1 ? 's' : ''
       }`;
 
-      if (window.lucide) {
-        lucide.createIcons();
-      }
+      if (window.lucide) lucide.createIcons();
     }
   }
 
@@ -508,9 +572,7 @@
       if (this.isRestoring) return;
       const snapshot = this.captureSnapshot(actionName);
       this.undoStack.push(snapshot);
-      if (this.undoStack.length > this.maxStates) {
-        this.undoStack.shift();
-      }
+      if (this.undoStack.length > this.maxStates) this.undoStack.shift();
       this.redoStack = [];
       this.updateUI();
     }
@@ -661,9 +723,7 @@
     document.getElementById('doc-dim-info').innerText = `${state.docWidth} × ${state.docHeight} px`;
     layerManager.render();
 
-    if (pushHistory) {
-      historyManager.pushState(`Resize Canvas (${state.docWidth}x${state.docHeight})`);
-    }
+    if (pushHistory) historyManager.pushState(`Resize Canvas (${state.docWidth}x${state.docHeight})`);
   }
 
   // =========================================================================
@@ -697,15 +757,9 @@
       opt.classList.toggle('hidden', opt.dataset.for !== toolName);
     });
 
-    if (toolName === 'text') {
-      layerManager.syncToolOptionsWithActiveLayer();
-    }
-
-    if (toolName === 'crop') {
-      state.cropBox = { x: 0, y: 0, w: state.docWidth, h: state.docHeight };
-    } else {
-      state.cropBox = null;
-    }
+    if (toolName === 'text') layerManager.syncToolOptionsWithActiveLayer();
+    if (toolName === 'crop') state.cropBox = { x: 0, y: 0, w: state.docWidth, h: state.docHeight };
+    else state.cropBox = null;
 
     renderOverlay();
     if (window.lucide) lucide.createIcons();
@@ -718,17 +772,9 @@
 
   function onCanvasDoubleClick(e) {
     const { x, y } = screenToDoc(e.clientX, e.clientY);
-    const active = layerManager.getActiveLayer();
-    if (active && active.type === 'text') {
-      const newTxt = prompt('Edit Text Content:', active.textData.text);
-      if (newTxt !== null) {
-        active.textData.text = newTxt;
-        active.name = newTxt.slice(0, 20) || 'Text Layer';
-        layerManager.render();
-        layerManager.updateUI();
-        historyManager.pushState('Edit Text Content');
-        showToast('Text updated.');
-      }
+    const hit = findLayerAt(x, y);
+    if (hit && hit.type === 'text') {
+      openInAppTextModal(hit);
     }
   }
 
@@ -753,9 +799,7 @@
 
     if (state.activeTool === 'move' && state.autoSelectLayer) {
       const hitLayer = findLayerAt(x, y);
-      if (hitLayer) {
-        layerManager.setActiveLayer(hitLayer.id);
-      }
+      if (hitLayer) layerManager.setActiveLayer(hitLayer.id);
     }
 
     const activeLayer = layerManager.getActiveLayer();
@@ -863,7 +907,7 @@
     } else if (state.activeTool === 'eraser' && state.hasMovedDuringDrag) {
       historyManager.pushState('Eraser Stroke');
     } else if (state.activeTool === 'move' && state.hasMovedDuringDrag) {
-      historyManager.pushState('Move / Transform');
+      historyManager.pushState('Move Layer');
     } else if (state.activeTool === 'marquee') {
       const w = x - state.startX;
       const h = y - state.startY;
@@ -1064,26 +1108,15 @@
   function handleTextToolClick(x, y) {
     const hit = findLayerAt(x, y);
     if (hit && hit.type === 'text') {
-      layerManager.setActiveLayer(hit.id);
-      const newTxt = prompt('Edit Text Content:', hit.textData.text);
-      if (newTxt !== null) {
-        hit.textData.text = newTxt;
-        hit.name = newTxt.slice(0, 20) || 'Text Layer';
-        layerManager.render();
-        layerManager.updateUI();
-        historyManager.pushState('Edit Text');
-      }
+      openInAppTextModal(hit);
       return;
     }
 
-    const text = prompt('Enter Text:', 'Vinzor Studio Pro');
-    if (!text) return;
-
-    const textLayer = new Layer(text.slice(0, 20), 400, 100, 'text');
+    const textLayer = new Layer('New Text Layer', 400, 100, 'text');
     textLayer.x = x;
     textLayer.y = y;
     textLayer.textData = {
-      text: text,
+      text: 'Vinzor Studio Pro',
       fontFamily: state.fontFamily,
       fontSize: state.fontSize,
       color: state.primaryColor,
@@ -1093,15 +1126,19 @@
 
     layerManager.addLayer(textLayer);
     historyManager.pushState('Add Text Layer');
+    openInAppTextModal(textLayer);
+  }
+
+  function openInAppTextModal(layer) {
+    state.editingTextLayerId = layer.id;
+    const input = document.getElementById('modal-text-input');
+    input.value = layer.textData.text || '';
+    openModal('modal-text-editor');
+    setTimeout(() => input.focus(), 50);
   }
 
   function executeCrop(crop) {
     if (!crop || crop.w <= 0 || crop.h <= 0) return;
-    const off = document.createElement('canvas');
-    off.width = crop.w;
-    off.height = crop.h;
-    const oCtx = off.getContext('2d');
-
     layerManager.layers.forEach((layer) => {
       layer.x -= crop.x;
       layer.y -= crop.y;
@@ -1183,7 +1220,6 @@
       overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       overlayCtx.fillRect(0, 0, state.docWidth, state.docHeight);
       overlayCtx.clearRect(c.x, c.y, c.w, c.h);
-
       overlayCtx.strokeStyle = '#38bdf8';
       overlayCtx.lineWidth = 2;
       overlayCtx.setLineDash([6, 3]);
@@ -1450,6 +1486,7 @@
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
+        hideWelcomeScreen();
         if (layerManager.layers.length <= 1) {
           resizeDocument(img.width, img.height, false);
         }
@@ -1518,6 +1555,7 @@
     reader.onload = (e) => {
       try {
         const project = JSON.parse(e.target.result);
+        hideWelcomeScreen();
         state.docName = project.name || 'Untitled';
         historyManager.restoreState({
           actionName: 'Load Project',
@@ -1535,6 +1573,7 @@
   }
 
   function loadSampleArtwork() {
+    hideWelcomeScreen();
     resizeDocument(1280, 720, false);
     layerManager.layers = [];
 
@@ -1574,19 +1613,6 @@
     };
     layerManager.addLayer(titleLayer);
 
-    const subLayer = new Layer('Subtitle Typography', 800, 80, 'text');
-    subLayer.x = 340;
-    subLayer.y = 370;
-    subLayer.textData = {
-      text: 'High-Performance Web Graphics Engine',
-      fontFamily: 'Inter, sans-serif',
-      fontSize: 24,
-      color: '#cbd5e1',
-      bold: false,
-      italic: false,
-    };
-    layerManager.addLayer(subLayer);
-
     historyManager.pushState('Load Sample Artwork');
     fitToScreen();
     showToast('Loaded sample artwork.');
@@ -1603,7 +1629,43 @@
   }
 
   // =========================================================================
-  // 12. UI INITIALIZATION & EVENT BINDINGS
+  // 12. PRESETS GALLERY & WELCOME CONTROLLER
+  // =========================================================================
+
+  function renderPresetCards(category = 'social') {
+    const container = document.getElementById('preset-cards-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const list = PRESET_DEFINITIONS[category] || [];
+    list.forEach((preset, idx) => {
+      const card = document.createElement('div');
+      card.className = `preset-card ${idx === 0 ? 'active' : ''}`;
+      card.innerHTML = `
+        <div class="preset-aspect-box" style="width:${preset.boxW}px; height:${preset.boxH}px;"></div>
+        <span class="preset-card-title">${preset.name}</span>
+        <span class="preset-card-dim">${preset.w} × ${preset.h}</span>
+      `;
+      card.onclick = () => {
+        document.querySelectorAll('.preset-card').forEach((c) => c.classList.remove('active'));
+        card.classList.add('active');
+        document.getElementById('new-doc-w').value = preset.w;
+        document.getElementById('new-doc-h').value = preset.h;
+      };
+      container.appendChild(card);
+    });
+  }
+
+  function showWelcomeScreen() {
+    welcomeScreen.classList.remove('hidden');
+  }
+
+  function hideWelcomeScreen() {
+    welcomeScreen.classList.add('hidden');
+  }
+
+  // =========================================================================
+  // 13. UI INITIALIZATION & EVENT BINDINGS
   // =========================================================================
 
   function initUI() {
@@ -1616,9 +1678,25 @@
     document.getElementById('menu-deselect').addEventListener('click', () => {
       state.selection = null;
       renderOverlay();
-      showToast('Deselected selection marquee.');
+      showToast('Deselected marquee.');
     });
 
+    // In-App Text Save
+    document.getElementById('btn-confirm-text-edit').addEventListener('click', () => {
+      const active = layerManager.getActiveLayer();
+      const txt = document.getElementById('modal-text-input').value;
+      if (active && active.type === 'text') {
+        active.textData.text = txt;
+        active.name = txt.slice(0, 20) || 'Text Layer';
+        layerManager.render();
+        layerManager.updateUI();
+        historyManager.pushState('Edit Text');
+        showToast('Text updated.');
+      }
+      closeModal('modal-text-editor');
+    });
+
+    // Live toolbar text input
     const liveTextInput = document.getElementById('opt-text-live-input');
     liveTextInput.addEventListener('input', (e) => {
       const active = layerManager.getActiveLayer();
@@ -1627,9 +1705,7 @@
         layerManager.render();
       }
     });
-    liveTextInput.addEventListener('change', () => {
-      historyManager.pushState('Update Text');
-    });
+    liveTextInput.addEventListener('change', () => historyManager.pushState('Update Text'));
 
     document.getElementById('btn-apply-text-change').addEventListener('click', () => {
       const active = layerManager.getActiveLayer();
@@ -1689,6 +1765,7 @@
       }
     });
 
+    // Colors
     const primColorInput = document.getElementById('primary-color');
     const secColorInput = document.getElementById('secondary-color');
     primColorInput.addEventListener('input', (e) => {
@@ -1722,6 +1799,7 @@
       document.getElementById('val-shape-stroke').innerText = state.shapeStroke + 'px';
     });
 
+    // Viewport Nav
     document.getElementById('btn-zoom-add').addEventListener('click', () => setZoom(state.zoom * 1.25));
     document.getElementById('btn-zoom-sub').addEventListener('click', () => setZoom(state.zoom / 1.25));
     document.getElementById('btn-fit-screen').addEventListener('click', fitToScreen);
@@ -1738,6 +1816,7 @@
       { passive: false }
     );
 
+    // Layer Buttons
     document.getElementById('btn-layer-new').addEventListener('click', () => {
       layerManager.addLayer(new Layer(`Layer ${layerManager.layers.length + 1}`, state.docWidth, state.docHeight, 'raster'));
       historyManager.pushState('New Layer');
@@ -1776,6 +1855,7 @@
       }
     });
 
+    // Tabs
     document.querySelectorAll('.tab-btn').forEach((tab) => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach((t) => t.classList.remove('active'));
@@ -1785,8 +1865,16 @@
       });
     });
 
-    document.getElementById('menu-new').addEventListener('click', () => openModal('modal-new-doc'));
-    document.getElementById('btn-quick-new').addEventListener('click', () => openModal('modal-new-doc'));
+    // Menus
+    document.getElementById('menu-home').addEventListener('click', showWelcomeScreen);
+    document.getElementById('menu-new').addEventListener('click', () => {
+      renderPresetCards('social');
+      openModal('modal-new-doc');
+    });
+    document.getElementById('btn-quick-new').addEventListener('click', () => {
+      renderPresetCards('social');
+      openModal('modal-new-doc');
+    });
     document.getElementById('menu-open').addEventListener('click', () => document.getElementById('file-input-image').click());
     document.getElementById('file-input-image').addEventListener('change', (e) => openImageFile(e.target.files[0]));
     document.getElementById('menu-open-project').addEventListener('click', () => document.getElementById('file-input-project').click());
@@ -1796,36 +1884,19 @@
     document.getElementById('btn-quick-export').addEventListener('click', openExportModal);
     document.getElementById('menu-sample').addEventListener('click', loadSampleArtwork);
 
-    // Edit Menu
     document.getElementById('menu-undo').addEventListener('click', () => historyManager.undo());
     document.getElementById('menu-redo').addEventListener('click', () => historyManager.redo());
     document.getElementById('menu-cut').addEventListener('click', () => {
       const active = layerManager.getActiveLayer();
       if (active && active.type === 'raster') {
-        if (state.selection) {
-          active.ctx.clearRect(state.selection.x - active.x, state.selection.y - active.y, state.selection.w, state.selection.h);
-        } else {
-          active.ctx.clearRect(0, 0, active.width, active.height);
-        }
+        if (state.selection) active.ctx.clearRect(state.selection.x - active.x, state.selection.y - active.y, state.selection.w, state.selection.h);
+        else active.ctx.clearRect(0, 0, active.width, active.height);
         layerManager.render();
-        historyManager.pushState('Clear Layer Contents');
+        historyManager.pushState('Clear Pixels');
       }
-    });
-    document.getElementById('menu-select-all').addEventListener('click', () => {
-      state.selection = { x: 0, y: 0, w: state.docWidth, h: state.docHeight };
-      renderOverlay();
-      showToast('Selected entire canvas');
     });
 
-    // Image Menu
-    document.getElementById('menu-canvas-size').addEventListener('click', () => {
-      const w = parseInt(prompt('New Width (px):', state.docWidth));
-      const h = parseInt(prompt('New Height (px):', state.docHeight));
-      if (w > 0 && h > 0) {
-        resizeDocument(w, h);
-        fitToScreen();
-      }
-    });
+    // Image Menu Actions
     document.getElementById('menu-crop-doc').addEventListener('click', () => {
       if (state.selection) executeCrop(state.selection);
       else showToast('Make a marquee selection first.');
@@ -1834,10 +1905,10 @@
     document.getElementById('menu-flip-v').addEventListener('click', () => transformActiveLayer('flip-v'));
     document.getElementById('menu-rot-90').addEventListener('click', () => transformActiveLayer('rot-90'));
 
-    // Layer Menu
+    // Layer Menu Actions
     document.getElementById('menu-add-layer').addEventListener('click', () => {
       layerManager.addLayer(new Layer(`Layer ${layerManager.layers.length + 1}`, state.docWidth, state.docHeight, 'raster'));
-      historyManager.pushState('New Raster Layer');
+      historyManager.pushState('New Layer');
     });
     document.getElementById('menu-dup-layer').addEventListener('click', () => {
       if (layerManager.activeLayerId) layerManager.duplicateLayer(layerManager.activeLayerId);
@@ -1850,34 +1921,7 @@
     });
     document.getElementById('menu-flatten').addEventListener('click', () => layerManager.flatten());
 
-    // Filter Menu
-    document.getElementById('menu-filter-blur').addEventListener('click', () => applyPresetFilter('blur'));
-    document.getElementById('menu-filter-sharpen').addEventListener('click', () => applyPresetFilter('sharpen'));
-    document.getElementById('menu-filter-grayscale').addEventListener('click', () => applyPresetFilter('grayscale'));
-    document.getElementById('menu-filter-invert').addEventListener('click', () => applyPresetFilter('invert'));
-    document.getElementById('menu-filter-sepia').addEventListener('click', () => applyPresetFilter('sepia'));
-    document.getElementById('menu-filter-vignette').addEventListener('click', () => applyPresetFilter('vignette'));
-
-    // Crop Toolbar Options
-    document.getElementById('btn-apply-crop').addEventListener('click', () => {
-      if (state.cropBox) executeCrop(state.cropBox);
-    });
-    document.getElementById('btn-cancel-crop').addEventListener('click', () => {
-      state.cropBox = null;
-      setActiveTool('move');
-      renderOverlay();
-    });
-
-    // Color Panel Sliders
-    ['brightness', 'contrast', 'hue', 'saturation', 'vibrance'].forEach((id) => {
-      const el = document.getElementById(`adj-${id}`);
-      if (el) {
-        el.addEventListener('input', (e) => {
-          document.getElementById(`val-adj-${id}`).innerText = e.target.value + (id === 'hue' ? '°' : '');
-        });
-      }
-    });
-
+    // Filters
     document.querySelectorAll('.filter-pill-btn').forEach((btn) => {
       btn.addEventListener('click', () => applyPresetFilter(btn.dataset.filter));
     });
@@ -1888,47 +1932,51 @@
       const s = parseInt(document.getElementById('adj-saturation').value);
       applyAdjustments(b, c, h, s);
     });
-    document.getElementById('btn-reset-adjustments').addEventListener('click', () => {
-      ['brightness', 'contrast', 'hue', 'saturation', 'vibrance'].forEach((id) => {
-        const el = document.getElementById(`adj-${id}`);
-        if (el) el.value = 0;
-        const valEl = document.getElementById(`val-adj-${id}`);
-        if (valEl) valEl.innerText = '0' + (id === 'hue' ? '°' : '');
-      });
-    });
 
-    // AI Studio
+    // AI
     document.getElementById('menu-ai-bg-remove').addEventListener('click', aiRemoveBackground);
     document.getElementById('btn-ai-remove-bg').addEventListener('click', aiRemoveBackground);
     document.getElementById('menu-ai-auto-enhance').addEventListener('click', aiAutoEnhance);
     document.getElementById('btn-ai-auto-enhance-tab').addEventListener('click', aiAutoEnhance);
     document.getElementById('menu-ai-inpaint').addEventListener('click', () => setActiveTool('inpaint'));
 
-    // Social Media Presets
-    document.querySelectorAll('.preset-btn').forEach((btn) => {
+    // Welcome Screen Handlers
+    document.getElementById('welcome-btn-new').addEventListener('click', () => {
+      renderPresetCards('social');
+      openModal('modal-new-doc');
+    });
+    document.getElementById('welcome-btn-open').addEventListener('click', () => document.getElementById('file-input-image').click());
+    document.getElementById('welcome-btn-sample').addEventListener('click', loadSampleArtwork);
+
+    const dropzone = document.getElementById('welcome-dropzone');
+    dropzone.addEventListener('click', () => document.getElementById('file-input-image').click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.endsWith('.json')) loadProjectJSON(file);
+        else openImageFile(file);
+      }
+    });
+
+    // Preset Category Tabs
+    document.querySelectorAll('.preset-category-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        resizeDocument(parseInt(btn.dataset.w), parseInt(btn.dataset.h));
-        fitToScreen();
-        showToast(`Resized to ${btn.innerText}`);
+        document.querySelectorAll('.preset-category-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderPresetCards(btn.dataset.category);
       });
     });
 
-    // View Menu
-    document.getElementById('menu-zoom-in').addEventListener('click', () => setZoom(state.zoom * 1.25));
-    document.getElementById('menu-zoom-out').addEventListener('click', () => setZoom(state.zoom / 1.25));
-    document.getElementById('menu-zoom-100').addEventListener('click', () => setZoom(1.0));
-    document.getElementById('menu-zoom-fit').addEventListener('click', fitToScreen);
-
-    // Modal Events
+    // Modals
     document.querySelectorAll('[data-close]').forEach((el) => {
       el.addEventListener('click', () => closeModal(el.dataset.close));
-    });
-
-    document.querySelectorAll('.preset-chips .chip-btn').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        document.getElementById('new-doc-w').value = chip.dataset.w;
-        document.getElementById('new-doc-h').value = chip.dataset.h;
-      });
     });
 
     document.getElementById('btn-confirm-new-doc').addEventListener('click', () => {
@@ -1938,6 +1986,7 @@
       const bg = document.getElementById('new-doc-bg').value;
 
       state.docName = name;
+      hideWelcomeScreen();
       resizeDocument(w, h, false);
       layerManager.layers = [];
       const baseLayer = new Layer('Background', w, h, 'raster');
@@ -1985,9 +2034,7 @@
   }
 
   function handleKeyDown(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
-      return;
-    }
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
     if (e.code === 'Space') {
       state.spacePressed = true;
@@ -2019,9 +2066,6 @@
       } else if (e.key.toLowerCase() === '1') {
         e.preventDefault();
         setZoom(1.0);
-      } else if (e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        layerManager.deselectActiveLayer();
       }
       return;
     }
@@ -2040,11 +2084,8 @@
     else if (key === 'delete' || key === 'backspace') {
       const active = layerManager.getActiveLayer();
       if (active && active.type === 'raster') {
-        if (state.selection) {
-          active.ctx.clearRect(state.selection.x - active.x, state.selection.y - active.y, state.selection.w, state.selection.h);
-        } else {
-          active.ctx.clearRect(0, 0, active.width, active.height);
-        }
+        if (state.selection) active.ctx.clearRect(state.selection.x - active.x, state.selection.y - active.y, state.selection.w, state.selection.h);
+        else active.ctx.clearRect(0, 0, active.width, active.height);
         layerManager.render();
         historyManager.pushState('Clear Pixels');
       }
@@ -2054,7 +2095,7 @@
   // Bootstrap
   window.addEventListener('DOMContentLoaded', () => {
     initUI();
-    loadSampleArtwork();
+    renderPresetCards('social');
     if (window.lucide) lucide.createIcons();
   });
 })();
