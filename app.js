@@ -1,6 +1,6 @@
 /**
  * Vinzor Photo Studio Pro — Core Graphics, Layer & Canvas Engine
- * Upgrades: Drag & Drop Layer Reordering, In-App Text Modals, Visual Presets & Welcome Screen
+ * Upgrades: Canvas Drag & Drop Image Insertion & Clipboard Paste (Ctrl+V)
  */
 
 (function () {
@@ -245,7 +245,7 @@
   }
 
   // =========================================================================
-  // 3. LAYER MANAGER WITH DRAG AND DROP
+  // 3. LAYER MANAGER
   // =========================================================================
 
   class LayerManager {
@@ -400,7 +400,6 @@
 
       const count = this.layers.length;
 
-      // Render top-down in UI (top layer first)
       for (let i = count - 1; i >= 0; i--) {
         const layer = this.layers[i];
         const actualIndex = i;
@@ -410,7 +409,6 @@
         item.draggable = true;
         item.dataset.index = actualIndex;
 
-        // HTML5 Drag & Drop Listeners
         item.addEventListener('dragstart', (e) => {
           state.draggedLayerIndex = actualIndex;
           item.classList.add('dragging');
@@ -446,16 +444,7 @@
           item.classList.remove('drag-over-top', 'drag-over-bottom');
           const fromIdx = state.draggedLayerIndex;
           if (fromIdx === null || fromIdx === undefined) return;
-
-          const rect = item.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          let toIdx = actualIndex;
-          if (e.clientY >= midY && fromIdx > actualIndex) {
-            // Dropped on bottom half
-          } else if (e.clientY < midY && fromIdx < actualIndex) {
-            // Dropped on top half
-          }
-          layerManager.reorderLayer(fromIdx, toIdx);
+          layerManager.reorderLayer(fromIdx, actualIndex);
         });
 
         item.onclick = (e) => {
@@ -1196,7 +1185,7 @@
   }
 
   // =========================================================================
-  // 8. OVERLAY RENDERING (Guides, Handles, Selections)
+  // 8. OVERLAY RENDERING
   // =========================================================================
 
   function renderOverlay() {
@@ -1477,8 +1466,22 @@
   }
 
   // =========================================================================
-  // 11. FILE PERSISTENCE & EXPORTS
+  // 11. FILE PERSISTENCE, DRAG & DROP AND CLIPBOARD PASTE
   // =========================================================================
+
+  function insertImageAsLayer(img, name = 'Imported Image') {
+    hideWelcomeScreen();
+    const newLayer = new Layer(name, img.width, img.height, 'raster');
+    newLayer.ctx.drawImage(img, 0, 0);
+
+    // Center layer on current document canvas
+    newLayer.x = Math.round((state.docWidth - img.width) / 2);
+    newLayer.y = Math.round((state.docHeight - img.height) / 2);
+
+    layerManager.addLayer(newLayer);
+    historyManager.pushState(`Insert: ${name}`);
+    showToast(`Added: ${name}`);
+  }
 
   function openImageFile(file) {
     if (!file) return;
@@ -1486,20 +1489,49 @@
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        hideWelcomeScreen();
-        if (layerManager.layers.length <= 1) {
+        // If workspace only has default empty background, scale to fit if requested
+        if (layerManager.layers.length <= 1 && welcomeScreen && !welcomeScreen.classList.contains('hidden')) {
           resizeDocument(img.width, img.height, false);
+          insertImageAsLayer(img, file.name.replace(/\.[^/.]+$/, ''));
+          fitToScreen();
+        } else {
+          insertImageAsLayer(img, file.name.replace(/\.[^/.]+$/, ''));
         }
-        const newLayer = new Layer(file.name.replace(/\.[^/.]+$/, ''), img.width, img.height, 'raster');
-        newLayer.ctx.drawImage(img, 0, 0);
-        layerManager.addLayer(newLayer);
-        historyManager.pushState(`Open: ${file.name}`);
-        fitToScreen();
-        showToast(`Imported ${file.name}`);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleClipboardPaste(e) {
+    // Prevent pasting when inside standard text inputs/textareas
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+      return;
+    }
+
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let foundImage = false;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            insertImageAsLayer(img, `Pasted Image ${layerManager.layers.length + 1}`);
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(blob);
+        foundImage = true;
+        break;
+      }
+    }
+
+    if (foundImage) {
+      e.preventDefault();
+    }
   }
 
   function exportArtwork(format = 'image/png', quality = 0.92, scale = 1.0) {
@@ -1950,20 +1982,46 @@
 
     const dropzone = document.getElementById('welcome-dropzone');
     dropzone.addEventListener('click', () => document.getElementById('file-input-image').click());
-    dropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropzone.classList.add('drag-over');
+
+    // =========================================================================
+    // GLOBAL CANVAS & WORKSPACE DRAG AND DROP HANDLER
+    // =========================================================================
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      viewportContainer.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
     });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-    dropzone.addEventListener('drop', (e) => {
+
+    ['dragleave', 'drop'].forEach((eventName) => {
+      window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    window.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropzone.classList.remove('drag-over');
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        const file = e.dataTransfer.files[0];
-        if (file.name.endsWith('.json')) loadProjectJSON(file);
-        else openImageFile(file);
+      e.stopPropagation();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        Array.from(e.dataTransfer.files).forEach((file) => {
+          if (file.name.endsWith('.json')) {
+            loadProjectJSON(file);
+          } else if (file.type.startsWith('image/')) {
+            openImageFile(file);
+          }
+        });
       }
     });
+
+    // =========================================================================
+    // GLOBAL CLIPBOARD PASTE HANDLER (CTRL + V)
+    // =========================================================================
+    window.addEventListener('paste', handleClipboardPaste);
 
     // Preset Category Tabs
     document.querySelectorAll('.preset-category-btn').forEach((btn) => {
